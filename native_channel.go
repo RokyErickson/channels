@@ -1,5 +1,7 @@
 package channels
 
+import "sync"
+
 // NativeInChannel implements the InChannel interface by wrapping a native go write-only channel.
 type NativeInChannel chan<- interface{}
 
@@ -35,32 +37,38 @@ func (ch NativeOutChannel) Cap() BufferCap {
 }
 
 // NativeChannel implements the Channel interface by wrapping a native go channel.
-type NativeChannel chan interface{}
+//type NativeChannel chan interface{}
+type NativeChannel struct {
+	C    chan interface{}
+	once sync.Once
+}
 
 // NewNativeChannel makes a new NativeChannel with the given buffer size. Just a convenience wrapper
 // to avoid having to cast the result of make().
-func NewNativeChannel(size BufferCap) NativeChannel {
-	return make(chan interface{}, size)
+func NewNativeChannel(size BufferCap) *NativeChannel {
+	return &NativeChannel{C: make(chan interface{}, size)}
 }
 
-func (ch NativeChannel) In() chan<- interface{} {
-	return ch
+func (ch *NativeChannel) In() chan<- interface{} {
+	return ch.C
 }
 
-func (ch NativeChannel) Out() <-chan interface{} {
-	return ch
+func (ch *NativeChannel) Out() <-chan interface{} {
+	return ch.C
 }
 
-func (ch NativeChannel) Len() int {
-	return len(ch)
+func (ch *NativeChannel) Len() int {
+	return len(ch.C)
 }
 
-func (ch NativeChannel) Cap() BufferCap {
-	return BufferCap(cap(ch))
+func (ch *NativeChannel) Cap() BufferCap {
+	return BufferCap(cap(ch.C))
 }
 
-func (ch NativeChannel) Close() {
-	close(ch)
+func (ch *NativeChannel) Close() {
+	ch.once.Do(func() {
+		close(ch.C)
+	})
 }
 
 // DeadChannel is a placeholder implementation of the Channel interface with no buffer
